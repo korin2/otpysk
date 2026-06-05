@@ -1,0 +1,11 @@
+{
+  "name": "Отпускной",
+  "short_name": "Отпускной",
+  "description": "Сервис учёта отпусков сотрудников",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#1e293b",
+  "orientation": "any",
+  "lang": "ru"
+}
