@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Дашборд — Отпускной{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-8">
+    <div>
+        <h1 class="text-3xl font-bold">📊 Дашборд отпусков</h1>
+        <p class="text-gray-500 mt-1">Обзор отпусков сотрудников</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="/?year={{ prev_year }}" class="text-gray-500 hover:text-gray-700 text-lg">◀</a>
+        <span class="text-2xl font-bold">{{ current_year }}</span>
+        <a href="/?year={{ next_year }}" class="text-gray-500 hover:text-gray-700 text-lg">▶</a>
+    </div>
+</div>
+
+<!-- Статистика -->
+<div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Сотрудников</p>
+        <p class="text-3xl font-bold text-gray-800">{{ employee_vacations|length }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Активных отпусков</p>
+        {% set active_count = namespace(val=0) %}
+        {% for ev in employee_vacations %}
+            {% for v in ev.vacations %}
+                {% if v.status == 'active' %}{% set active_count.val = active_count.val + 1 %}{% endif %}
+            {% endfor %}
+        {% endfor %}
+        <p class="text-3xl font-bold text-green-600">{{ active_count.val }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Всего дней отпуска</p>
+        <p class="text-3xl font-bold text-blue-600">{{ employee_vacations|sum(attribute='annual_days') }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Сегодня</p>
+        <p class="text-3xl font-bold text-gray-800">{{ today }}</p>
+    </div>
+</div>
+
+<!-- Диаграмма Ганта -->
+<div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+    <h2 class="text-xl font-bold mb-4">График отпусков {{ current_year }} года</h2>
+
+    <!-- Шкала месяцев -->
+    <div class="flex border-b border-gray-200 pb-2 mb-2">
+        <div class="w-48 flex-shrink-0"></div>
+        <div class="flex-1 flex">
+            {% for m in months_data %}
+            <div class="flex-1 text-center text-xs font-semibold
+                {{ 'text-primary' if m.is_current else 'text-gray-500' }}">
+                {{ m.name[:3] }}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Строки сотрудников -->
+    {% for ev in employee_vacations %}
+    <div class="flex items-center border-b border-gray-100 py-1 hover:bg-gray-50 transition-colors">
+        <div class="w-48 flex-shrink-0 pr-4">
+            <a href="/employees/{{ ev.id }}" class="text-sm font-medium text-gray-800 hover:text-primary truncate block">
+                {{ ev.name }}
+            </a>
+            <span class="text-xs text-gray-400">{{ ev.position }}</span>
+        </div>
+        <div class="flex-1 relative h-8">
+            <!-- Сетка месяцев -->
+            <div class="absolute inset-0 flex">
+                {% for m in months_data %}
+                <div class="flex-1 border-r border-gray-100 last:border-r-0"></div>
+                {% endfor %}
+            </div>
+
+            <!-- Полоски отпусков -->
+            {% for v in ev.vacations %}
+            <div class="gantt-bar absolute top-1 h-6 rounded-full has-tooltip cursor-pointer
+                {% if v.status == 'active' %}bg-green-500
+                {% elif v.status == 'completed' %}bg-gray-400
+                {% else %}bg-blue-500{% endif %}"
+                style="left: {{ v.left_pct }}%; width: max({{ v.width_pct }}%, 0.5%);">
+                <div class="tooltip bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap">
+                    <p class="font-semibold">{{ v.start_date }} → {{ v.end_date }}</p>
+                    <p>{{ v.days_count }} дн. — {{ v.status_label }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center text-gray-400 py-12">
+        <p class="text-4xl mb-2">📋</p>
+        <p>Нет сотрудников для отображения</p>
+        <a href="/employees" class="text-primary hover:underline text-sm mt-2 inline-block">Добавить сотрудников</a>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Легенда -->
+<div class="flex items-center gap-6 text-sm text-gray-500">
+    <div class="flex items-center gap-2">
+        <div class="w-4 h-4 rounded-full bg-blue-500"></div>
+        Запланирован
+    </div>
+    <div class="flex items-center gap-2">
+        <div class="w-4 h-4 rounded-full bg-green-500"></div>
+        Активен
+    </div>
+    <div class="flex items-center gap-2">
+        <div class="w-4 h-4 rounded-full bg-gray-400"></div>
+        Завершён
+    </div>
+</div>
+
+<!-- Сводка по сотрудникам -->
+<div class="bg-white rounded-xl shadow-sm p-6 mt-6">
+    <h2 class="text-xl font-bold mb-4">Остатки дней отпуска</h2>
+    <div class="space-y-3">
+        {% for ev in employee_vacations %}
+        <div class="flex items-center gap-3">
+            <span class="w-40 text-sm font-medium truncate">{{ ev.name }}</span>
+            <div class="flex-1 bg-gray-200 rounded-full h-4">
+                <div class="h-4 rounded-full transition-all
+                    {% if ev.remaining_days > 0 %}bg-blue-500
+                    {% else %}bg-red-500{% endif %}"
+                    style="width: {{ (ev.used_days / ev.annual_days * 100) if ev.annual_days > 0 else 0 }}%">
+                </div>
+            </div>
+            <span class="text-sm font-semibold {{ 'text-green-600' if ev.remaining_days > 0 else 'text-red-600' }}">
+                {{ ev.remaining_days }} / {{ ev.annual_days }}
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

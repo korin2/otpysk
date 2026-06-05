@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Производственный календарь — Отпускной{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-8">
+    <div>
+        <h1 class="text-3xl font-bold">📅 Производственный календарь</h1>
+        <p class="text-gray-500 mt-1">Календарь праздничных и выходных дней РФ</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="/calendar?year={{ prev_year }}" class="text-gray-500 hover:text-gray-700 text-lg">◀</a>
+        <span class="text-2xl font-bold">{{ year }}</span>
+        <a href="/calendar?year={{ next_year }}" class="text-gray-500 hover:text-gray-700 text-lg">▶</a>
+    </div>
+</div>
+
+{% if not has_data %}
+<!-- Нет данных — предложение загрузить -->
+<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-8 text-center mb-6">
+    <p class="text-4xl mb-3">📅</p>
+    <h2 class="text-xl font-bold text-yellow-800 mb-2">Календарь не загружен</h2>
+    <p class="text-yellow-600 mb-4">Загрузите производственный календарь на {{ year }} год для отображения праздничных и выходных дней.</p>
+    <form action="/calendar/api/update" method="post" class="inline-block">
+        <input type="hidden" name="year" value="{{ year }}">
+        <button type="submit"
+            class="bg-yellow-500 text-white font-semibold px-6 py-2.5 rounded-lg hover:bg-yellow-600 transition-colors">
+            Загрузить календарь на {{ year }} год
+        </button>
+    </form>
+    <p class="text-xs text-yellow-500 mt-3">Данные загружаются из production-calendar.ru</p>
+</div>
+{% else %}
+<!-- Кнопка обновления -->
+<div class="mb-6 flex justify-between items-center">
+    <p class="text-sm text-gray-500">Данные загружены. Для обновления нажмите кнопку.</p>
+    <form action="/calendar/api/update" method="post" class="inline-block">
+        <input type="hidden" name="year" value="{{ next_year }}">
+        <button type="submit"
+            class="bg-green-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm">
+            🔄 Загрузить {{ next_year }} год
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Статистика по году -->
+{% if has_data %}
+<div class="grid grid-cols-4 gap-4 mb-6">
+    {% set total_work = namespace(val=0) %}
+    {% set total_hol = namespace(val=0) %}
+    {% set total_short = namespace(val=0) %}
+    {% for m in months_data %}
+        {% set total_work.val = total_work.val + m.work_days %}
+        {% set total_hol.val = total_hol.val + m.holidays %}
+        {% set total_short.val = total_short.val + m.short_days %}
+    {% endfor %}
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Рабочих дней</p>
+        <p class="text-3xl font-bold text-blue-600">{{ total_work.val }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Выходных/праздников</p>
+        <p class="text-3xl font-bold text-red-500">{{ total_hol.val }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Сокращённых</p>
+        <p class="text-3xl font-bold text-yellow-600">{{ total_short.val }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Всего дней</p>
+        <p class="text-3xl font-bold text-gray-800">{{ total_work.val + total_hol.val }}</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Календарная сетка по месяцам -->
+<div class="grid grid-cols-3 gap-6">
+    {% for m in months_data %}
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 flex justify-between items-center">
+            <span>{{ m.name }}</span>
+            <span class="text-xs text-gray-400">
+                {{ m.work_days }} раб. / {{ m.holidays }} вых.
+            </span>
+        </div>
+        <div class="p-3">
+            {% if m.days %}
+            <div class="grid grid-cols-7 gap-1">
+                <!-- Заголовки дней недели -->
+                <div class="text-center text-xs text-gray-400 py-1">Пн</div>
+                <div class="text-center text-xs text-gray-400 py-1">Вт</div>
+                <div class="text-center text-xs text-gray-400 py-1">Ср</div>
+                <div class="text-center text-xs text-gray-400 py-1">Чт</div>
+                <div class="text-center text-xs text-gray-400 py-1">Пт</div>
+                <div class="text-center text-xs text-gray-400 py-1">Сб</div>
+                <div class="text-center text-xs text-gray-400 py-1">Вс</div>
+
+                <!-- Смещение для первого дня -->
+                {% set first_day = m.days[0] if m.days else none %}
+                {% if first_day %}
+                {% for i in range(first_day.weekday) %}
+                <div></div>
+                {% endfor %}
+                {% endif %}
+
+                <!-- Дни -->
+                {% for d in m.days %}
+                <div class="text-center py-1 text-sm rounded
+                    {% if d.is_holiday %}bg-red-100 text-red-700 font-semibold
+                    {% elif d.is_short_day %}bg-yellow-100 text-yellow-700
+                    {% elif d.weekday >= 5 %}bg-gray-100 text-gray-500
+                    {% else %}hover:bg-gray-50{% endif %}">
+                    {{ d.day }}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-center text-gray-300 py-6 text-sm">Нет данных</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Таблица праздников -->
+{% if has_data %}
+<div class="bg-white rounded-xl shadow-sm p-6 mt-6">
+    <h2 class="text-xl font-bold mb-4">Праздничные дни {{ year }} года</h2>
+    <div class="grid grid-cols-2 gap-4">
+        {% for m in months_data %}
+        {% set holidays = m.days|selectattr('is_holiday', 'equalto', true)|list %}
+        {% if holidays %}
+        <div>
+            <h3 class="font-semibold text-gray-700 mb-2">{{ m.name }}</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+                {% for d in holidays %}
+                <li class="flex items-center gap-2">
+                    <span class="text-red-500">🔴</span>
+                    {{ d.day }} число
+                    {% if d.is_short_day %}<span class="text-yellow-500 text-xs">(сокращённый)</span>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
