@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Сотрудники — Отпускной{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-8">
+    <div>
+        <h1 class="text-xl sm:text-3xl font-bold">👥 Сотрудники</h1>
+        <p class="text-gray-500 mt-1 text-xs sm:text-base">Управление списком сотрудников</p>
+    </div>
+    <button onclick="document.getElementById('addModal').classList.remove('hidden')"
+        class="bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+        + Добавить
+    </button>
+</div>
+
+<!-- Статистика -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Всего сотрудников</p>
+        <p class="text-3xl font-bold text-gray-800">{{ employees|length }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Активных</p>
+        <p class="text-3xl font-bold text-green-600">{{ employees|selectattr('is_active', 'equalto', true)|list|length }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Всего дней отпуска</p>
+        <p class="text-3xl font-bold text-blue-600">{{ employees|sum(attribute='total_days') }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-5">
+        <p class="text-gray-500 text-sm">Перенесено дней</p>
+        <p class="text-3xl font-bold text-purple-600">{{ employees|sum(attribute='carry_over_days') }}</p>
+    </div>
+</div>
+
+<!-- Таблица сотрудников -->
+<div class="bg-white rounded-xl shadow-sm overflow-x-auto">
+    <table class="w-full min-w-[700px]">
+        <thead class="bg-gray-50 border-b">
+            <tr>
+                <th class="text-left px-4 py-3 text-sm font-semibold text-gray-500">Сотрудник</th>
+                <th class="text-left px-4 py-3 text-sm font-semibold text-gray-500">Отдел</th>
+                <th class="text-left px-4 py-3 text-sm font-semibold text-gray-500">Должность</th>
+                <th class="text-center px-4 py-3 text-sm font-semibold text-gray-500">Дней/год</th>
+                <th class="text-center px-4 py-3 text-sm font-semibold text-gray-500">Перенос</th>
+                <th class="text-center px-4 py-3 text-sm font-semibold text-gray-500">Остаток</th>
+                <th class="text-center px-4 py-3 text-sm font-semibold text-gray-500">Статус</th>
+                <th class="text-center px-4 py-3 text-sm font-semibold text-gray-500">Действия</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for emp in employees %}
+            <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-4 py-3">
+                    <a href="/employees/{{ emp.id }}" class="text-primary hover:underline font-medium flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ emp.color }}"></span>
+                        {{ emp.full_name }}
+                    </a>
+                </td>
+                <td class="px-4 py-3 text-gray-600">{{ emp.department or '—' }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ emp.position or '—' }}</td>
+                <td class="px-4 py-3 text-center font-semibold">{{ emp.total_days }}</td>
+                <td class="px-4 py-3 text-center">
+                    {% if emp.carry_over_days > 0 %}
+                    <span class="text-purple-600 text-sm font-semibold">+{{ emp.carry_over_days }}</span>
+                    {% else %}
+                    <span class="text-gray-400">0</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-center">
+                    <span class="inline-block px-2 py-1 rounded text-sm font-semibold
+                        {{ 'bg-green-100 text-green-700' if emp.remaining_days > 0 else 'bg-red-100 text-red-700' }}">
+                        {{ emp.remaining_days }}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-center">
+                    {% if emp.is_active %}
+                    <span class="text-green-600 text-xs font-semibold bg-green-50 px-2 py-1 rounded-full">Активен</span>
+                    {% else %}
+                    <span class="text-gray-500 text-xs bg-gray-100 px-2 py-1 rounded-full">Неактивен</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-center">
+                    <div class="flex items-center justify-center gap-2">
+                        <a href="/employees/{{ emp.id }}" class="text-primary text-sm hover:underline">Отпуска</a>
+                        <button onclick="editEmployee({{ emp.id }}, '{{ emp.full_name|e }}', '{{ emp.position|e }}', '{{ emp.department|e }}', {{ emp.annual_days }}, {{ emp.carry_over_days }}, '{{ emp.color }}', {{ 'true' if emp.is_active else 'false' }})"
+                            class="text-gray-500 text-sm hover:text-gray-700">✏️</button>
+                        <button hx-get="/employees/api/{{ emp.id }}/delete"
+                            hx-confirm="Удалить сотрудника {{ emp.full_name|e }}? Все отпуска будут удалены."
+                            class="text-red-500 text-sm hover:text-red-700">🗑️</button>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="px-6 py-12 text-center text-gray-400">
+                    <p class="text-4xl mb-2">👥</p>
+                    <p>Нет сотрудников. Добавьте первого!</p>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Модалка: Добавить сотрудника -->
+<div id="addModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 lg:p-8 w-full max-w-lg mx-4">
+        <h2 class="text-2xl font-bold mb-6">Добавить сотрудника</h2>
+        <form action="/employees/api" method="post"
+            hx-post="/employees/api"
+            hx-on::after-request="document.getElementById('addModal').classList.add('hidden')"
+            class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ФИО *</label>
+                <input type="text" name="full_name" required
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                    placeholder="Иванов Иван Иванович">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Отдел</label>
+                    <input type="text" name="department"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                        placeholder="IT">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Должность</label>
+                    <input type="text" name="position"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+                        placeholder="Инженер">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Дней отпуска в год</label>
+                    <input type="number" name="annual_days" value="28" min="1" max="365"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Перенос с пр. года</label>
+                    <input type="number" name="carry_over_days" value="0" min="0" max="365"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Цвет</label>
+                <input type="color" name="color" value="#3b82f6"
+                    class="w-16 h-10 border border-gray-300 rounded-lg cursor-pointer">
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="submit"
+                    class="flex-1 bg-primary text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors">
+                    Добавить
+                </button>
+                <button type="button" onclick="document.getElementById('addModal').classList.add('hidden')"
+                    class="flex-1 bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-lg hover:bg-gray-300 transition-colors">
+                    Отмена
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модалка: Редактировать сотрудника -->
+<div id="editModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 lg:p-8 w-full max-w-lg mx-4">
+        <h2 class="text-2xl font-bold mb-6">Редактировать сотрудника</h2>
+        <form id="editForm" action="" method="post"
+            hx-post=""
+            hx-on::after-request="document.getElementById('editModal').classList.add('hidden')"
+            class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ФИО *</label>
+                <input type="text" name="full_name" id="editFullName" required
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Отдел</label>
+                    <input type="text" name="department" id="editDepartment"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Должность</label>
+                    <input type="text" name="position" id="editPosition"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Дней отпуска в год</label>
+                    <input type="number" name="annual_days" id="editAnnualDays" min="1" max="365"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Перенос с пр. года</label>
+                    <input type="number" name="carry_over_days" id="editCarryOver" min="0" max="365"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Цвет</label>
+                    <input type="color" name="color" id="editColor"
+                        class="w-16 h-10 border border-gray-300 rounded-lg cursor-pointer">
+                </div>
+                <div class="flex items-center gap-2 mt-5">
+                    <input type="checkbox" name="is_active" id="editIsActive" value="true"
+                        class="w-4 h-4 text-primary rounded">
+                    <label for="editIsActive" class="text-sm text-gray-700">Активен</label>
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="submit"
+                    class="flex-1 bg-primary text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors">
+                    Сохранить
+                </button>
+                <button type="button" onclick="document.getElementById('editModal').classList.add('hidden')"
+                    class="flex-1 bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-lg hover:bg-gray-300 transition-colors">
+                    Отмена
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function editEmployee(id, name, position, department, annualDays, carryOver, color, isActive) {
+    var form = document.getElementById('editForm');
+    form.action = '/employees/api/' + id + '/edit';
+    form.setAttribute('hx-post', '/employees/api/' + id + '/edit');
+    document.getElementById('editFullName').value = name;
+    document.getElementById('editPosition').value = position;
+    document.getElementById('editDepartment').value = department;
+    document.getElementById('editAnnualDays').value = annualDays;
+    document.getElementById('editCarryOver').value = carryOver;
+    document.getElementById('editColor').value = color;
+    document.getElementById('editIsActive').checked = (isActive === 'true');
+    document.getElementById('editModal').classList.remove('hidden');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Производственный календарь — Отпускной{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-8">
+    <div>
+        <h1 class="text-xl sm:text-3xl font-bold">📅 Производственный календарь</h1>
+        <p class="text-gray-500 mt-1 text-xs sm:text-base">Календарь праздничных и выходных дней РФ</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="/calendar?year={{ prev_year }}" class="text-gray-500 hover:text-gray-700 text-lg">◀</a>
+        <span class="text-lg sm:text-2xl font-bold">{{ year }}</span>
+        <a href="/calendar?year={{ next_year }}" class="text-gray-500 hover:text-gray-700 text-lg">▶</a>
+    </div>
+</div>
+
+{% if not has_data %}
+<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-8 text-center mb-6">
+    <p class="text-4xl mb-3">📅</p>
+    <h2 class="text-xl font-bold text-yellow-800 mb-2">Календарь не загружен</h2>
+    <p class="text-yellow-600 mb-4">Загрузите производственный календарь на {{ year }} год для отображения праздничных и выходных дней.</p>
+    <form action="/calendar/api/update" method="post" class="inline-block">
+        <input type="hidden" name="year" value="{{ year }}">
+        <button type="submit" class="bg-yellow-500 text-white font-semibold px-6 py-2.5 rounded-lg hover:bg-yellow-600 transition-colors">
+            Загрузить календарь на {{ year }} год
+        </button>
+    </form>
+    <p class="text-xs text-yellow-500 mt-3">Данные формируются на основе производственного календаря РФ</p>
+</div>
+{% else %}
+<div class="mb-6 flex justify-between items-center">
+    <p class="text-sm text-gray-500">Данные загружены. Для обновления нажмите кнопку.</p>
+    <form action="/calendar/api/update" method="post" class="inline-block">
+        <input type="hidden" name="year" value="{{ year }}">
+        <button type="submit" class="bg-green-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm">
+            🔄 Обновить {{ year }} год
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{% if has_data %}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
+    {% set total_work = namespace(val=0) %}
+    {% set total_hol = namespace(val=0) %}
+    {% set total_short = namespace(val=0) %}
+    {% for m in months_data %}
+        {% set total_work.val = total_work.val + m.work_days %}
+        {% set total_hol.val = total_hol.val + m.holidays %}
+        {% set total_short.val = total_short.val + m.short_days %}
+    {% endfor %}
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-5">
+        <p class="text-gray-500 text-xs sm:text-sm">Рабочих дней</p>
+        <p class="text-xl sm:text-3xl font-bold text-blue-600">{{ total_work.val }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-5">
+        <p class="text-gray-500 text-xs sm:text-sm">Выходных/праздников</p>
+        <p class="text-xl sm:text-3xl font-bold text-red-500">{{ total_hol.val }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-5">
+        <p class="text-gray-500 text-xs sm:text-sm">Сокращённых</p>
+        <p class="text-xl sm:text-3xl font-bold text-yellow-600">{{ total_short.val }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-5">
+        <p class="text-gray-500 text-xs sm:text-sm">Всего дней</p>
+        <p class="text-xl sm:text-3xl font-bold text-gray-800">{{ total_work.val + total_hol.val }}</p>
+    </div>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+    {% for m in months_data %}
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 flex justify-between items-center">
+            <span>{{ m.name }}</span>
+            <span class="text-xs text-gray-400">{{ m.work_days }} раб. / {{ m.holidays }} вых.</span>
+        </div>
+        <div class="p-3">
+            {% if m.days %}
+            <div class="grid grid-cols-7 gap-1">
+                <div class="text-center text-xs text-gray-400 py-1">Пн</div>
+                <div class="text-center text-xs text-gray-400 py-1">Вт</div>
+                <div class="text-center text-xs text-gray-400 py-1">Ср</div>
+                <div class="text-center text-xs text-gray-400 py-1">Чт</div>
+                <div class="text-center text-xs text-gray-400 py-1">Пт</div>
+                <div class="text-center text-xs text-gray-400 py-1">Сб</div>
+                <div class="text-center text-xs text-gray-400 py-1">Вс</div>
+                {% set first_day = m.days[0] if m.days else none %}
+                {% if first_day %}
+                {% for i in range(first_day.weekday) %}
+                <div></div>
+                {% endfor %}
+                {% endif %}
+                {% for d in m.days %}
+                <div class="text-center py-1 text-sm rounded relative
+                    {% if d.is_holiday %}bg-red-100 text-red-700 font-semibold
+                    {% elif d.is_short_day %}bg-yellow-100 text-yellow-700
+                    {% elif d.weekday >= 5 %}bg-gray-100 text-gray-500
+                    {% else %}hover:bg-gray-50{% endif %}"
+                    {% if d.holiday_name %}title="{{ d.holiday_name }}"{% endif %}>
+                    {{ d.day }}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-center text-gray-300 py-6 text-sm">Нет данных</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if has_data %}
+<div class="bg-white rounded-xl shadow-sm p-6 mt-6">
+    <h2 class="text-lg sm:text-xl font-bold mb-4">Праздничные дни {{ year }} года</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {% for m in months_data %}
+        {% set holidays = m.days|selectattr('holiday_name', 'ne', '')|list %}
+        {% if holidays %}
+        <div>
+            <h3 class="font-semibold text-gray-700 mb-2">{{ m.name }}</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+                {% for d in holidays %}
+                <li class="flex items-center gap-2">
+                    <span class="text-red-500">🔴</span>
+                    {{ d.day }} число — {{ d.holiday_name }}
+                    {% if d.is_short_day %}<span class="text-yellow-500 text-xs ml-1">(сокращённый)</span>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Переносы выходных дней -->
+<div id="transfers" class="bg-white rounded-xl shadow-sm p-4 sm:p-6 mt-6">
+    <h2 class="text-lg sm:text-xl font-bold mb-4">📌 Переносы выходных дней ({{ year }})</h2>
+    <p class="text-sm text-gray-500 mb-4">Добавьте переносы согласно постановлению Правительства РФ. После добавления нажмите «Обновить календарь».</p>
+    
+    <form action="/calendar/api/transfer/add" method="post" class="flex flex-wrap items-end gap-3 mb-6 p-4 bg-gray-50 rounded-lg">
+        <input type="hidden" name="year" value="{{ year }}">
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Перенос с (мм-дд)</label>
+            <input type="text" name="source" required placeholder="01-11"
+                pattern="\d{2}-\d{2}" title="Формат: мм-дд"
+                class="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none">
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">День стал выходным (мм-дд)</label>
+            <input type="text" name="target" required placeholder="05-02"
+                pattern="\d{2}-\d{2}" title="Формат: мм-дд"
+                class="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none">
+        </div>
+        <button type="submit" class="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm">
+            + Добавить
+        </button>
+    </form>
+
+    {% if transfers %}
+    <div class="overflow-x-auto">
+        <table class="w-full max-w-md">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="text-left px-4 py-2 text-sm font-semibold text-gray-500">Перенос с</th>
+                    <th class="text-left px-4 py-2 text-sm font-semibold text-gray-500">День стал выходным</th>
+                    <th class="text-center px-4 py-2 text-sm font-semibold text-gray-500"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for t in transfers %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2 text-sm text-gray-600">{{ t.source }}</td>
+                    <td class="px-4 py-2 font-medium text-sm">{{ t.target }}</td>
+                    <td class="px-4 py-2 text-center">
+                        <a href="/calendar/api/transfer/delete?year={{ year }}&target={{ t.target }}"
+                            class="text-red-500 hover:text-red-700 text-sm">🗑️</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-gray-400 text-sm">Нет добавленных переносов на {{ year }} год.</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
